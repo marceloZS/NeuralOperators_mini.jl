@@ -4,10 +4,12 @@ using Plots
 using NeuralOperators
 using Lux, Zygote, Optimisers, Random
 using Statistics
+using Printf
+using Dates
 
 # --- 1. Load Data ---
-train_file = "./train_for_julia.npz"
-test_file  = "./test_for_julia.npz"
+train_file = "./test/train_for_julia.npz"
+test_file  = "./test/test_for_julia.npz"
 
 # Load raw data (assuming shape [Batch, H, W])
 x_train_raw = convert(Array{Float32}, npzread(train_file)["x"])
@@ -70,8 +72,27 @@ function loss(ps, st, bx, by)
     return mse(ŷ, by), st2
 end
 
-function train_loop!(model, ps, st, opt, x_train::Array{Float32,4}, y_train::Array{Float32,4}, n_epochs, batch_size)
+function train_loop!(
+    model, 
+    ps, 
+    st, 
+    opt, 
+    x_train::Array{Float32,4}, 
+    y_train::Array{Float32,4}, 
+    n_epochs, 
+    batch_size
+    )
+
+    metrics_history = Dict(
+        "epoch" => Int[],
+        "train_time" => Float64[],
+        "inferemce_time" => Float64[],  
+        "train_mse" => Float64[]
+    )
+    println("Starting training loop for $n_epochs epochs...")
+    
     for epoch in 1:n_epochs
+        train_start = time_ns()
         lsum = 0.0
         nb   = 0
         println("Epoch $epoch starting...")
@@ -95,11 +116,35 @@ function train_loop!(model, ps, st, opt, x_train::Array{Float32,4}, y_train::Arr
             lsum += l
             nb   += 1
         end
+
+        train_time = (time_ns() - train_start) / 1e9
         avg_loss = lsum / nb
+
+        inference_start = time_ns()
+        test_mse = evaluate_model(model, ps, st, x_test, y_test, batch_size)
+        inference_time = (time_ns() - inference_start) / 1e9
+
+        push!(metrics_history["epoch"], epoch)
+        push!(metrics_history["train_time"], train_time)
+        push!(metrics_history["inferemce_time"], inference_time)
+        push!(metrics_history["train_mse"], avg_loss)
+
+        @printf("Epoch %d/%d:\n", epoch, n_epochs)
+        @printf("  Train Time: %.4f s | Inference Time: %.4f s\n", train_time, inference_time)
+        @printf("  Train MSE: %.6f\n", avg_loss)
+
+        @printf("  Timestamp: %s\n", Dates.format(now(), "yyyy-mm-dd HH:MM:SS"))
+        @printf("__________\n")
+
+
         println("Epoch $epoch completed. Average MSE: $avg_loss")
         @info "Epoch $epoch | avg MSE = $avg_loss"
+
+        flush(stdout)
     end
-    return ps, st
+    println("Training completed.")
+    flush(stdout)
+    return ps, st, metrics_history
 end
 
 function evaluate_model(model, ps, st, x_test::Array{Float32,4}, y_test::Array{Float32,4}, batch_size)
@@ -115,7 +160,7 @@ end
 
 # --- 5. Train and Evaluate ---
 const BATCH_SIZE = 16
-const N_EPOCHS = 5
+const N_EPOCHS = 10
 opt = Optimisers.setup(Optimisers.Adam(1e-3), ps)
 
 println("Training for $N_EPOCHS epochs...")
