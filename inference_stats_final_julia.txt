@@ -1,0 +1,8 @@
+=== Final Inference Time Statistics (5 runs) ===
+Mean: 0.266399 ms/sample
+Std Dev: 0.066154 ms/sample
+Median: 0.243616 ms/sample
+Min: 0.228845 ms/sample
+Max: 0.384013 ms/sample
+Throughput Mean: 3899.62 samples/s
+Throughput Std: 735.88 samples/s
